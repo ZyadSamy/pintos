@@ -201,9 +201,8 @@ thread_create (const char *name, int priority,
   /* Add to run queue. */
   thread_unblock (t);
 
-    if (t->priority > thread_current()->priority) {
-        thread_yield();
-    }
+  if ( (t->priority) > (thread_current()->priority) )
+    thread_yield();
 
   return tid;
 }
@@ -474,6 +473,9 @@ init_thread (struct thread *t, const char *name, int priority)
   ASSERT (t != NULL);
   ASSERT (PRI_MIN <= priority && priority <= PRI_MAX);
   ASSERT (name != NULL);
+
+  list_init(&(t->locks));
+  list_init(&(t->donations));
 
   memset (t, 0, sizeof *t);
   t->status = THREAD_BLOCKED;

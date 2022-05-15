@@ -57,6 +57,14 @@ sema_init (struct semaphore *sema, unsigned value)
    interrupt handler.  This function may be called with
    interrupts disabled, but if it sleeps then the next scheduled
    thread will probably turn interrupts back on. */
+
+bool
+sema_piority_cmp (const struct list_elem *a, const struct list_elem *b, void *aux) {
+  struct thread *thread1 = list_entry(a, struct thread, elem);
+  struct thread *thread2 = list_entry(b, struct thread, elem);
+  return thread1->priority > thread2->priority;
+}
+
 void
 sema_down (struct semaphore *sema) 
 {
@@ -114,7 +122,6 @@ sema_up (struct semaphore *sema)
 
   old_level = intr_disable ();
   if (!list_empty (&sema->waiters)) {
-      list_sort(&sema->waiters, &thread_piority_cmp, NULL);
       thread_unblock (list_entry (list_pop_front (&sema->waiters),
       struct thread, elem));
   }
@@ -199,6 +206,12 @@ lock_acquire (struct lock *lock)
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock));
 
+  bool cannot_acquire = !lock_try_acquire(&lock);
+  if (cannot_acquire) {
+    if ( (thread_current()->priority) > (lock->holder->priority) )
+      donate();
+  }
+  
   sema_down (&lock->semaphore);
   lock->holder = thread_current ();
 }
@@ -234,6 +247,13 @@ lock_release (struct lock *lock)
   ASSERT (lock != NULL);
   ASSERT (lock_held_by_current_thread (lock));
 
+  bool thread_was_donated_to = !list_empty(&lock->holder->donations);
+  if (thread_was_donated_to) {
+    
+  }
+
+  lock->holder->priority = lock->holder->original_priority;
+
   lock->holder = NULL;
   sema_up (&lock->semaphore);
 }
@@ -248,7 +268,7 @@ lock_held_by_current_thread (const struct lock *lock)
 
   return lock->holder == thread_current ();
 }
-
+
 /* One semaphore in a list. */
 struct semaphore_elem 
   {
