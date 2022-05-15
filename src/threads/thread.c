@@ -474,8 +474,9 @@ init_thread (struct thread *t, const char *name, int priority)
   ASSERT (PRI_MIN <= priority && priority <= PRI_MAX);
   ASSERT (name != NULL);
 
-  list_init(&(t->locks));
   list_init(&(t->donations));
+
+  t->original_priority = priority;
 
   memset (t, 0, sizeof *t);
   t->status = THREAD_BLOCKED;
