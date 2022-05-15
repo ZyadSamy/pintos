@@ -201,6 +201,10 @@ thread_create (const char *name, int priority,
   /* Add to run queue. */
   thread_unblock (t);
 
+    if (t->priority > thread_current()->priority) {
+        thread_yield();
+    }
+
   return tid;
 }
 
@@ -248,10 +252,6 @@ thread_unblock (struct thread *t)
 
   list_insert_ordered(&ready_list, &t->elem, &thread_piority_cmp, NULL);
   t->status = THREAD_READY;
-
-  if (t->priority > thread_current()->priority) {
-    thread_yield();
-  }
   
   intr_set_level (old_level);
 }
