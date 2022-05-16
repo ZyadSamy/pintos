@@ -98,6 +98,10 @@ struct thread
    struct list locks;
    struct lock *waiting_lock;
 
+   /* */
+   struct list_elem celem;
+   struct list_elem selem;
+
    /* Shared between thread.c and synch.c. */
    struct list_elem elem; /* List element. */
 
