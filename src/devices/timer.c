@@ -117,10 +117,6 @@ timer_sleep (int64_t ticks)
 
   // sleep until sema signals
   sema_down(&sema);
-
-            /* Old Code */
-  // while (timer_elapsed (start) < ticks) 
-  //   thread_yield ();
 }
 
 bool 

@@ -350,9 +350,12 @@ void
 thread_set_priority (int new_priority) 
 {
   int old_priority = thread_current()->priority;
+  if (new_priority > thread_current()->virtual_priority)
+    thread_current ()->virtual_priority = new_priority;
+
   thread_current ()->priority = new_priority;
-  if (new_priority < old_priority) 
-    thread_yield();
+
+  thread_yield();
 }
 
 /* Returns the current thread's priority. */
@@ -474,8 +477,9 @@ init_thread (struct thread *t, const char *name, int priority)
   ASSERT (PRI_MIN <= priority && priority <= PRI_MAX);
   ASSERT (name != NULL);
 
-  list_init(&(t->locks));
-  list_init(&(t->donations));
+  list_init(&t->locks);
+
+  t->waiting_lock = NULL;
 
   memset (t, 0, sizeof *t);
   t->status = THREAD_BLOCKED;

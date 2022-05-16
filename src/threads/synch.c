@@ -1,3 +1,9 @@
+
+#define DEBUG true
+
+
+
+
 /* This file is derived from source code for the Nachos
    instructional operating system.  The Nachos copyright notice
    is reproduced in full below. */
@@ -76,7 +82,7 @@ sema_down (struct semaphore *sema)
   old_level = intr_disable ();
   while (sema->value == 0) 
     {
-      list_insert_ordered(&sema->waiters, &thread_current ()->elem, &thread_piority_cmp, NULL);
+      list_insert_ordered(&sema->waiters, &thread_current ()->elem, &sema_piority_cmp, NULL);
       thread_block ();
     }
   sema->value--;
@@ -122,6 +128,7 @@ sema_up (struct semaphore *sema)
 
   old_level = intr_disable ();
   if (!list_empty (&sema->waiters)) {
+      list_sort(&sema->waiters, &sema_piority_cmp, NULL);
       thread_unblock (list_entry (list_pop_front (&sema->waiters),
       struct thread, elem));
   }
@@ -166,7 +173,7 @@ sema_test_helper (void *sema_)
       sema_up (&sema[1]);
     }
 }
-
+
 /* Initializes LOCK.  A lock can be held by at most a single
    thread at any given time.  Our locks are not "recursive", that
    is, it is an error for the thread currently holding a lock to
@@ -206,14 +213,31 @@ lock_acquire (struct lock *lock)
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock));
 
-  bool cannot_acquire = !lock_try_acquire(&lock);
-  if (cannot_acquire) {
-    if ( (thread_current()->priority) > (lock->holder->priority) )
-      donate();
+  bool cannot_acquire = !lock_try_acquire(lock);
+
+  if (!thread_mlfqs && cannot_acquire) {
+    thread_current()->waiting_lock = lock;  
+
+    struct thread *cur_holder = thread_current(); 
+    while (cur_holder->waiting_lock != NULL) {
+      cur_holder = cur_holder->waiting_lock->holder;
+
+      if ( (thread_current()->priority) > 
+           (cur_holder->virtual_priority) ) 
+        cur_holder->virtual_priority = thread_current()->priority;
+    }
   }
   
   sema_down (&lock->semaphore);
+
+  enum intr_level old_level = intr_disable ();
+  if(!thread_mlfqs) {
+    thread_current()-> waiting_lock = NULL;
+    list_push_front(&thread_current()->locks, &lock->elem);
+  }
   lock->holder = thread_current ();
+  intr_set_level (old_level);
+
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
@@ -236,6 +260,23 @@ lock_try_acquire (struct lock *lock)
   return success;
 }
 
+int
+get_locks_max_prio() {
+  struct thread *curr = thread_current();
+  int max_prio = 0;
+
+  for (struct list_elem* iter = list_begin(&curr->locks);
+       iter != list_end(&curr->locks);
+       iter = list_next(iter))
+  {
+    struct lock* l = list_entry(iter, struct lock, elem);
+    int lock_max_prio = list_entry(list_front(&l->semaphore.waiters), struct thread, elem)->priority;
+    if (lock_max_prio > max_prio)
+      max_prio = lock_max_prio;
+  }
+  return max_prio;
+}
+
 /* Releases LOCK, which must be owned by the current thread.
 
    An interrupt handler cannot acquire a lock, so it does not
@@ -247,12 +288,20 @@ lock_release (struct lock *lock)
   ASSERT (lock != NULL);
   ASSERT (lock_held_by_current_thread (lock));
 
-  bool thread_was_donated_to = !list_empty(&lock->holder->donations);
-  if (thread_was_donated_to) {
-    
-  }
+  if(!thread_mlfqs) {
+    enum intr_level old_level = intr_disable();
+    struct thread *curr = thread_current();
+    list_remove(&lock->elem);
 
-  lock->holder->priority = lock->holder->original_priority;
+    if (!list_empty(&curr->locks)) {
+      int max_prio = get_locks_max_prio();
+      lock->holder->priority = max_prio;
+    }
+    else {
+      lock->holder->virtual_priority = lock->holder->priority;
+    }
+    intr_set_level(old_level);
+  }
 
   lock->holder = NULL;
   sema_up (&lock->semaphore);
