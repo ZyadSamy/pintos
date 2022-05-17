@@ -66,9 +66,16 @@ sema_init (struct semaphore *sema, unsigned value)
 
 bool
 sema_priority_cmp (const struct list_elem *a, const struct list_elem *b, void *aux) {
-  struct thread *thread1 = list_entry(a, struct thread, selem);
-  struct thread *thread2 = list_entry(b, struct thread, selem);
+  struct thread *thread1 = list_entry(a, struct thread, elem);
+  struct thread *thread2 = list_entry(b, struct thread, elem);
   return thread1->virtual_priority > thread2->virtual_priority;
+}
+
+bool
+cond_priority_cmp (const struct list_elem *a, const struct list_elem *b, void *aux) {
+    struct thread *thread1 = list_entry(a, struct thread, cond_elem);
+    struct thread *thread2 = list_entry(b, struct thread, cond_elem);
+    return thread1->virtual_priority > thread2->virtual_priority;
 }
 
 void
@@ -82,7 +89,7 @@ sema_down (struct semaphore *sema)
   old_level = intr_disable ();
   while (sema->value == 0)
     {
-      list_insert_ordered(&sema->waiters, &thread_current()->selem, &sema_priority_cmp, NULL);
+      list_insert_ordered(&sema->waiters, &thread_current()->elem, &sema_priority_cmp, NULL);
       thread_block ();
     }
   sema->value--;
@@ -130,12 +137,13 @@ sema_up (struct semaphore *sema)
   if (!list_empty (&sema->waiters)) {
       list_sort(&sema->waiters, &sema_priority_cmp, NULL);
       thread_unblock (list_entry (list_pop_front (&sema->waiters),
-      struct thread, selem));
+      struct thread, elem));
   }
 
   sema->value++;
   intr_set_level (old_level);
   if (!intr_context()) thread_yield();
+
 
 }
 
@@ -215,29 +223,32 @@ lock_acquire (struct lock *lock)
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock));
 
-  enum intr_level old_level = intr_disable ();
 
-  bool cannot_acquire = lock->holder != NULL;
+  bool cannot_acquire = lock -> holder == NULL ? false: true;
 
-  if (cannot_acquire && !thread_mlfqs) {
+  if (!thread_mlfqs && cannot_acquire) {
     thread_current()->waiting_lock = lock;
 
     struct thread *cur_holder = thread_current();
     while (cur_holder->waiting_lock != NULL) {
       cur_holder = cur_holder->waiting_lock->holder;
 
-      if ( (thread_current()->virtual_priority) >
+      if ( (thread_current()->priority) >
            (cur_holder->virtual_priority) )
         cur_holder->virtual_priority = thread_current()->priority;
     }
   }
   
   sema_down (&lock->semaphore);
-  thread_current()-> waiting_lock = NULL;
-  list_push_front(&thread_current()->locks, &lock->elem);
-  
+
+  enum intr_level old_level = intr_disable ();
+  if(!thread_mlfqs) {
+    thread_current()-> waiting_lock = NULL;
+    list_push_front(&thread_current()->locks, &lock->elem);
+  }
   lock->holder = thread_current ();
   intr_set_level (old_level);
+
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
@@ -265,10 +276,9 @@ get_locks_max_prio() {
   struct thread *curr = thread_current();
   int max_prio = 0;
 
-  for 
-    ( struct list_elem* iter = list_begin(&curr->locks);
-      iter != list_end(&curr->locks);
-      iter = list_next(iter) )
+  for (struct list_elem* iter = list_begin(&curr->locks);
+       iter != list_end(&curr->locks);
+       iter = list_next(iter))
   {
     struct lock* l = list_entry(iter, struct lock, elem);
     int lock_max_prio = list_entry(list_begin(&l->semaphore.waiters), struct thread, elem)->priority;
@@ -289,9 +299,8 @@ lock_release (struct lock *lock)
   ASSERT (lock != NULL);
   ASSERT (lock_held_by_current_thread (lock));
 
-  enum intr_level old_level = intr_disable();
-
   if(!thread_mlfqs) {
+    enum intr_level old_level = intr_disable();
     struct thread *curr = thread_current();
     list_remove(&lock->elem);
 
@@ -302,12 +311,11 @@ lock_release (struct lock *lock)
     else {
       lock->holder->virtual_priority = lock->holder->priority;
     }
+    intr_set_level(old_level);
   }
 
   lock->holder = NULL;
   sema_up (&lock->semaphore);
-
-  intr_set_level(old_level);
 }
 
 /* Returns true if the current thread holds LOCK, false
@@ -339,13 +347,6 @@ cond_init (struct condition *cond)
   list_init (&cond->waiters);
 }
 
-bool
-cond_waiters_cmp (const struct list_elem *a, const struct list_elem *b, void *aux) {
-  struct thread *thread1 = list_entry(a, struct thread, celem);
-  struct thread *thread2 = list_entry(b, struct thread, celem);
-  return thread1->priority > thread2->priority;
-};
-
 /* Atomically releases LOCK and waits for COND to be signaled by
    some other piece of code.  After COND is signaled, LOCK is
    reacquired before returning.  LOCK must be held before calling
@@ -369,19 +370,23 @@ cond_waiters_cmp (const struct list_elem *a, const struct list_elem *b, void *au
 void
 cond_wait (struct condition *cond, struct lock *lock) 
 {
+  struct semaphore_elem waiter;
+
   ASSERT (cond != NULL);
   ASSERT (lock != NULL);
   ASSERT (!intr_context ());
   ASSERT (lock_held_by_current_thread (lock));
-  
-  enum intr_level old_level = intr_disable ();
 
-  list_insert_ordered(&cond->waiters, &thread_current()->celem, &cond_waiters_cmp, NULL);
-  lock_release (lock);
 
-  thread_block ();
-  lock_acquire (lock);
-  intr_set_level (old_level);
+
+    enum intr_level old_level = intr_disable ();
+
+    list_insert_ordered(&cond->waiters, &thread_current()->cond_elem, &cond_priority_cmp , NULL);
+    lock_release (lock);
+
+    thread_block ();
+    lock_acquire (lock);
+    intr_set_level (old_level);
 }
 
 /* If any threads are waiting on COND (protected by LOCK), then
@@ -398,15 +403,17 @@ cond_signal (struct condition *cond, struct lock *lock UNUSED)
   ASSERT (lock != NULL);
   ASSERT (!intr_context ());
   ASSERT (lock_held_by_current_thread (lock));
-  
-  enum intr_level old_level = intr_disable ();
-  if (!list_empty (&cond->waiters)) {
-    thread_unblock (list_entry (list_pop_front (&cond->waiters),
-      struct thread, celem));
-  }
 
-  thread_yield ();
-  intr_set_level (old_level);
+    enum intr_level old_level = intr_disable ();
+    if (!list_empty (&cond->waiters)) {
+        thread_unblock (list_entry (list_pop_front (&cond->waiters),
+        struct thread, cond_elem));
+    }
+
+    thread_yield ();
+    intr_set_level (old_level);
+
+
 }
 
 /* Wakes up all threads, if any, waiting on COND (protected by

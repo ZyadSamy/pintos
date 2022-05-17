@@ -200,13 +200,9 @@ thread_create (const char *name, int priority,
 
   /* Add to run queue. */
   thread_unblock (t);
-  
-  enum intr_level old_level = intr_disable ();
 
-  if ( priority > (thread_current()->virtual_priority) )
+  if ( (t->priority) > (thread_current()->priority) )
     thread_yield();
-
-  intr_set_level (old_level);
 
   return tid;
 }
@@ -229,10 +225,10 @@ thread_block (void)
 
 /* Returns true if the first thread has a higher piority than the second thread passed.*/
 bool
-thread_piority_cmp (const struct list_elem *a, const struct list_elem *b, void *aux) {
+thread_priority_cmp (const struct list_elem *a, const struct list_elem *b, void *aux) {
   struct thread *thread1 = list_entry(a, struct thread, elem);
   struct thread *thread2 = list_entry(b, struct thread, elem);
-  return thread1->virtual_priority > thread2->virtual_priority;
+  return thread1->priority > thread2->priority;
 };
 
 /* Transitions a blocked thread T to the ready-to-run state.
@@ -253,7 +249,7 @@ thread_unblock (struct thread *t)
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
 
-  list_insert_ordered(&ready_list, &t->elem, &thread_piority_cmp, NULL);
+  list_insert_ordered(&ready_list, &t->elem, &thread_priority_cmp, NULL);
   t->status = THREAD_READY;
   
   intr_set_level (old_level);
@@ -325,7 +321,7 @@ thread_yield (void)
 
   old_level = intr_disable ();
   if (cur != idle_thread) 
-    list_insert_ordered(&ready_list, &cur->elem, &thread_piority_cmp, NULL);
+    list_insert_ordered(&ready_list, &cur->elem, &thread_priority_cmp, NULL);
 
   cur->status = THREAD_READY;
   schedule ();
@@ -482,15 +478,16 @@ init_thread (struct thread *t, const char *name, int priority)
   ASSERT (name != NULL);
 
 
+
   memset (t, 0, sizeof *t);
   t->status = THREAD_BLOCKED;
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
   t->virtual_priority = priority;
+  list_init(&t->locks);
   t->waiting_lock = NULL;
   t->magic = THREAD_MAGIC;
-  list_init(&t->locks);
 
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
