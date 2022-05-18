@@ -41,11 +41,13 @@ test_priority_donate_multiple2 (void)
   lock_acquire (&a);
   lock_acquire (&b);
 
+  msg("lock a,b acquired");
+
   thread_create ("a", PRI_DEFAULT + 3, a_thread_func, &a);
   msg ("Main thread should have priority %d.  Actual priority: %d.",
        PRI_DEFAULT + 3, thread_get_priority ());
 
-  thread_create ("c", 29, c_thread_func, NULL);
+  thread_create ("c", PRI_DEFAULT + 1, c_thread_func, NULL);
 
   thread_create ("b", PRI_DEFAULT + 5, b_thread_func, &b);
   msg ("Main thread should have priority %d.  Actual priority: %d.",
@@ -64,6 +66,7 @@ test_priority_donate_multiple2 (void)
 static void
 a_thread_func (void *lock_) 
 {
+  msg("entered thread a");
   struct lock *lock = lock_;
 
   lock_acquire (lock);
@@ -75,6 +78,8 @@ a_thread_func (void *lock_)
 static void
 b_thread_func (void *lock_) 
 {
+  msg("entered thread b");
+
   struct lock *lock = lock_;
 
   lock_acquire (lock);
@@ -86,5 +91,7 @@ b_thread_func (void *lock_)
 static void
 c_thread_func (void *a_ UNUSED) 
 {
+  msg("entered thread c");
+
   msg ("Thread c finished.");
 }

@@ -198,11 +198,16 @@ thread_create (const char *name, int priority,
   sf->eip = switch_entry;
   sf->ebp = 0;
 
+  printf("unblocking\n");
   /* Add to run queue. */
   thread_unblock (t);
+  printf("unblocked\n");
 
-  if ( (t->priority) > (thread_current()->priority) )
+  printf("Comparing current: %s %i , with new: %s %i \n", thread_current()->name, thread_current()->virtual_priority, name, priority);
+  if ( priority > (thread_current()->virtual_priority) ) {
+    printf("LARGEEEEER\n");
     thread_yield();
+  }
 
   return tid;
 }
@@ -316,12 +321,13 @@ thread_yield (void)
 {
   struct thread *cur = thread_current ();
   enum intr_level old_level;
-  
+
   ASSERT (!intr_context ());
 
   old_level = intr_disable ();
-  if (cur != idle_thread) 
+  if (cur != idle_thread)  {
     list_insert_ordered(&ready_list, &cur->elem, &thread_priority_cmp, NULL);
+  }
 
   cur->status = THREAD_READY;
   schedule ();

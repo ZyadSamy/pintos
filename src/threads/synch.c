@@ -142,7 +142,9 @@ sema_up (struct semaphore *sema)
 
   sema->value++;
   intr_set_level (old_level);
-  if (!intr_context()) thread_yield();
+  if (!intr_context()) {
+    thread_yield();
+  }
 
 
 }
@@ -412,8 +414,6 @@ cond_signal (struct condition *cond, struct lock *lock UNUSED)
 
     thread_yield ();
     intr_set_level (old_level);
-
-
 }
 
 /* Wakes up all threads, if any, waiting on COND (protected by
