@@ -73,10 +73,16 @@ h_thread_func (void *ls_)
 {
   struct lock_and_sema *ls = ls_;
 
+  msg("p before acquire %i", thread_current()->priority);
+
   lock_acquire (&ls->lock);
+  msg("thread (%s) p after acquire %i", thread_current()->name, thread_current()->priority);
   msg ("Thread H acquired lock.");
 
+  msg("thread (%s) p before sema_up %i", thread_current()->name, thread_current()->priority);
   sema_up (&ls->sema);
+  msg("p after sema_up %i", thread_current()->priority);
+  msg("before lock release in H");
   lock_release (&ls->lock);
   msg ("Thread H finished.");
 }

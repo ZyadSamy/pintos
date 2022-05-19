@@ -91,10 +91,10 @@ struct thread
    struct list_elem allelem;  /* List element for all threads list. */
 
    struct list_elem cond_elem;
-
    struct list_elem sema_elem;
 
-   int virtual_priority;
+   int o_priority;
+   
 
    // struct list donations; /* Keeps track of all donations to this thread */
    // struct list_elem d_elem;
