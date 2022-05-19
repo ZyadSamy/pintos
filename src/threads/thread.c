@@ -205,21 +205,23 @@ thread_create (const char *name, int priority,
   sf->eip = switch_entry;
   sf->ebp = 0;
 
+  // PROBLEM
+  /* MAIN THREAD HAS VIRTUAL_PRIORITY = 0 BECAUSE ITS NOT CREATED VIA THREAD_init DIFFERENT THAN  */
   struct thread *curr = thread_current();
   printf("Creating thread \"%s\"\n", name);
   printf("unblocking\n");
   /* Add to run queue. */
   // sema_down(&thread_created);
   thread_unblock (t);
-  // if(!list_empty(&ready_list))
-  //   {
-  //       struct thread* top_ready = list_entry(list_begin(&ready_list), struct thread, elem);
-  //       struct thread* top_all = list_entry(list_begin(&all_list), struct thread, allelem);
-  //       printf("top thread in ready list is %s, size is: %lu;\n", top_ready->name, list_size(&ready_list));
-  //       printf("top thread in all list is %s, size is: %lu;\n", top_all->name, list_size(&all_list));
-  //   }
+  if(!list_empty(&ready_list))
+    {
+        struct thread* top_ready = list_entry(list_begin(&ready_list), struct thread, elem);
+        struct thread* top_all = list_entry(list_begin(&all_list), struct thread, allelem);
+        printf("top thread in ready list is %s, size is: %lu;\n", top_ready->name, list_size(&ready_list));
+        printf("top thread in all list is %s, size is: %lu;\n", top_all->name, list_size(&all_list));
+    }
 
-  printf("Comparing current: %i, with new: %i\n", thread_current()->virtual_priority, priority);
+  printf("current (%s) p:%i v_p:%i, with new: %i\n", thread_current()->name, thread_current()->priority, thread_current()->virtual_priority, priority);
   if ( priority > (curr->virtual_priority) ) {
     printf("LARGEEEEER\n");
     thread_yield();

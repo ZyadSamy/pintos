@@ -1,9 +1,3 @@
-
-#define DEBUG true
-
-
-
-
 /* This file is derived from source code for the Nachos
    instructional operating system.  The Nachos copyright notice
    is reproduced in full below. */
@@ -230,20 +224,11 @@ lock_acquire (struct lock *lock)
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock));
 
-  // printf("hehahah\n");
   bool cannot_acquire = lock -> holder == NULL ? false: true;
 
   if (!thread_mlfqs && cannot_acquire) {
     thread_current()->waiting_lock = lock;
-
-    struct thread *cur_holder = thread_current();
-    while (cur_holder->waiting_lock != NULL) {
-      cur_holder = cur_holder->waiting_lock->holder;
-
-      if ( (thread_current()->priority) >
-           (cur_holder->virtual_priority) )
-        cur_holder->virtual_priority = thread_current()->priority;
-    }
+    donate_prio();
   }
   
   sema_down (&lock->semaphore);
@@ -256,6 +241,19 @@ lock_acquire (struct lock *lock)
   lock->holder = thread_current ();
   intr_set_level (old_level);
 
+}
+
+void
+donate_prio(void) {
+  struct thread *cur_holder = thread_current();
+
+  while (cur_holder->waiting_lock != NULL) {
+    cur_holder = cur_holder->waiting_lock->holder;
+
+    if ( (thread_current()->virtual_priority) >
+         (cur_holder->virtual_priority) )
+      cur_holder->virtual_priority = thread_current()->virtual_priority;
+  }
 }
 
 /* Tries to acquires LOCK and returns true if successful or false

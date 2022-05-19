@@ -58,6 +58,8 @@ test_priority_donate_multiple (void)
 static void
 a_thread_func (void *lock_) 
 {
+  msg("entered thread a");
+
   struct lock *lock = lock_;
 
   lock_acquire (lock);
@@ -69,6 +71,8 @@ a_thread_func (void *lock_)
 static void
 b_thread_func (void *lock_) 
 {
+       msg("entered thread b");
+
   struct lock *lock = lock_;
 
   lock_acquire (lock);
