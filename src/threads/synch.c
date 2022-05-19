@@ -230,7 +230,7 @@ lock_acquire (struct lock *lock)
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock));
 
-
+  // printf("hehahah\n");
   bool cannot_acquire = lock -> holder == NULL ? false: true;
 
   if (!thread_mlfqs && cannot_acquire) {
