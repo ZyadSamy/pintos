@@ -140,11 +140,11 @@ void sema_up(struct semaphore *sema)
   }
 
   sema->value++;
-  intr_set_level(old_level);
   if (t && !intr_context() && t->priority > thread_current()->priority ) {
-    printf("thread (%s) p:%i is yielding\n", thread_current()->name, thread_current()->priority);
+    // printf("thread (%s) p:%i is yielding\n", thread_current()->name, thread_current()->priority);
     thread_yield();
   }
+  intr_set_level(old_level);
 }
 
 static void sema_test_helper(void *sema_);
@@ -220,6 +220,8 @@ void lock_acquire(struct lock *lock)
   ASSERT(!intr_context());
   ASSERT(!lock_held_by_current_thread(lock));
 
+  enum intr_level old_level = intr_disable();
+
   bool cannot_acquire = lock->holder == NULL ? false : true;
 
   if (cannot_acquire)
@@ -230,7 +232,6 @@ void lock_acquire(struct lock *lock)
 
   sema_down(&lock->semaphore);
 
-  enum intr_level old_level = intr_disable();
 
   thread_current()->waiting_lock = NULL;
   list_push_front(&thread_current()->locks, &lock->elem);
@@ -241,7 +242,7 @@ void lock_acquire(struct lock *lock)
 
 void
 donate_prio(void) {
-  printf("donation\n");
+  // printf("donation\n");
   struct thread *cur_holder = thread_current();
   while (cur_holder->waiting_lock != NULL)
   {
@@ -313,10 +314,10 @@ void lock_release(struct lock *lock)
   {
     lock->holder->priority = lock->holder->o_priority;
   }
-  intr_set_level(old_level);
   
   lock->holder = NULL;
   sema_up(&lock->semaphore);
+  intr_set_level(old_level);
 }
 
 /* Returns true if the current thread holds LOCK, false
