@@ -83,27 +83,22 @@ typedef int tid_t;
 struct thread
 {
    /* Owned by thread.c. */
-   tid_t tid;                 /* Thread identifier. */
-   enum thread_status status; /* Thread state. */
-   char name[16];             /* Name (for debugging purposes). */
-   uint8_t *stack;            /* Saved stack pointer. */
-   int priority;              /* Priority. */
-   struct list_elem allelem;  /* List element for all threads list. */
-
-   struct list_elem cond_elem;
-   struct list_elem sema_elem;
-
-   int o_priority;
-   
-
-   // struct list donations; /* Keeps track of all donations to this thread */
-   // struct list_elem d_elem;
-
-   struct list locks;
-   struct lock *waiting_lock;
+   tid_t tid;                    /* Thread identifier. */
+   enum thread_status status;    /* Thread state. */
+   char name[16];                /* Name (for debugging purposes). */
+   uint8_t *stack;               /* Saved stack pointer. */
+   int priority;                 /* Priority. */
+   int o_priority;               /* Priority without any donation. */
+   struct list_elem allelem;     /* List element for all threads list. */
+   struct list_elem cond_elem;   /* List element for threads waiting for a cond */
 
    /* Shared between thread.c and synch.c. */
-   struct list_elem elem; /* List element. */
+   /* List element for ready_threads and sema_waiters. */
+   struct list_elem elem; 
+
+   struct list locks;         /* Locks acquired by the thread. */
+   /* Lock causing the thread to block until it can acquire it. (if any) */
+   struct lock *waiting_lock;
 
 #ifdef USERPROG
    /* Owned by userprog/process.c. */
@@ -144,8 +139,6 @@ void thread_foreach(thread_action_func *, void *);
 
 int thread_get_priority(void);
 void thread_set_priority(int);
-bool thread_piority_cmp(const struct list_elem *a, const struct list_elem *b, void *aux);
-
 int thread_get_nice(void);
 void thread_set_nice(int);
 int thread_get_recent_cpu(void);
