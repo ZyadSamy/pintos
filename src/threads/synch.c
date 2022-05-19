@@ -138,12 +138,13 @@ void sema_up(struct semaphore *sema)
                               struct thread, elem);
     thread_unblock(t);
   }
-
   sema->value++;
-  if (t && !intr_context() && t->priority > thread_current()->priority ) {
-    // printf("thread (%s) p:%i is yielding\n", thread_current()->name, thread_current()->priority);
+
+  if (!intr_context() && t)
     thread_yield();
-  }
+  // if (t && !intr_context() && t->priority > thread_current()->priority ) {
+    // printf("thread (%s) p:%i is yielding\n", thread_current()->name, thread_current()->priority);
+  // }
   intr_set_level(old_level);
 }
 
@@ -227,7 +228,16 @@ void lock_acquire(struct lock *lock)
   if (cannot_acquire)
   {
     thread_current()->waiting_lock = lock;
-    donate_prio();
+    // donate_prio();
+    struct thread *cur_holder = thread_current();
+  while (cur_holder->waiting_lock != NULL)
+  {
+    cur_holder = cur_holder->waiting_lock->holder;
+
+    if ((thread_current()->priority) >
+        (cur_holder->priority))
+      cur_holder->priority = thread_current()->priority;
+  }
   }
 
   sema_down(&lock->semaphore);
@@ -243,15 +253,7 @@ void lock_acquire(struct lock *lock)
 void
 donate_prio(void) {
   // printf("donation\n");
-  struct thread *cur_holder = thread_current();
-  while (cur_holder->waiting_lock != NULL)
-  {
-    cur_holder = cur_holder->waiting_lock->holder;
-
-    if ((thread_current()->priority) >
-        (cur_holder->priority))
-      cur_holder->priority = thread_current()->priority;
-  }
+  
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
@@ -276,16 +278,19 @@ bool lock_try_acquire(struct lock *lock)
 int get_locks_max_prio()
 {
   struct thread *curr = thread_current();
-  int max_prio = 0;
+  int max_prio = curr->o_priority;
 
   for (struct list_elem *iter = list_begin(&curr->locks);
        iter != list_end(&curr->locks);
-       iter = list_next(iter))
+       iter =  list_next(iter))
   {
     struct lock *l = list_entry(iter, struct lock, elem);
-    int lock_max_prio = list_entry(list_begin(&l->semaphore.waiters), struct thread, elem)->priority;
-    if (lock_max_prio > max_prio)
-      max_prio = lock_max_prio;
+    // sort the locks waiters
+    list_sort(&l->semaphore.waiters, &sema_priority_cmp, NULL);
+    // get the top prio
+    int lock_top_prio = list_entry(list_begin(&l->semaphore.waiters), struct thread, elem)->priority;
+    if (lock_top_prio > max_prio)
+      max_prio = lock_top_prio;
   }
   return max_prio;
 }
