@@ -37,6 +37,10 @@ static struct thread *initial_thread;
 /* Lock used by allocate_tid(). */
 static struct lock tid_lock;
 
+static struct semaphore thread_created;
+
+static int started = 0;
+
 /* Stack frame for kernel_thread(). */
 struct kernel_thread_frame 
   {
@@ -93,6 +97,8 @@ thread_init (void)
   list_init (&ready_list);
   list_init (&all_list);
 
+  sema_init(&thread_created, -1);
+
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
   init_thread (initial_thread, "main", PRI_DEFAULT);
@@ -107,7 +113,7 @@ thread_start (void)
 {
   /* Create the idle thread. */
   struct semaphore idle_started;
-  sema_init (&idle_started, 0);
+  sema_init (&idle_started, 1);
   thread_create ("idle", PRI_MIN, idle, &idle_started);
 
   /* Start preemptive thread scheduling. */
@@ -115,6 +121,7 @@ thread_start (void)
 
   /* Wait for the idle thread to initialize idle_thread. */
   sema_down (&idle_started);
+  started = 1;
 }
 
 /* Called by the timer interrupt handler at each timer tick.
@@ -198,18 +205,43 @@ thread_create (const char *name, int priority,
   sf->eip = switch_entry;
   sf->ebp = 0;
 
+  struct thread *curr = thread_current();
+  printf("Creating thread \"%s\"\n", name);
   printf("unblocking\n");
   /* Add to run queue. */
+  // sema_down(&thread_created);
   thread_unblock (t);
-  printf("unblocked\n");
+  // if(!list_empty(&ready_list))
+  //   {
+  //       struct thread* top_ready = list_entry(list_begin(&ready_list), struct thread, elem);
+  //       struct thread* top_all = list_entry(list_begin(&all_list), struct thread, allelem);
+  //       printf("top thread in ready list is %s, size is: %lu;\n", top_ready->name, list_size(&ready_list));
+  //       printf("top thread in all list is %s, size is: %lu;\n", top_all->name, list_size(&all_list));
+  //   }
 
-  printf("Comparing current: %s %i , with new: %s %i \n", thread_current()->name, thread_current()->virtual_priority, name, priority);
-  if ( priority > (thread_current()->virtual_priority) ) {
+  printf("Comparing current: %i, with new: %i\n", thread_current()->virtual_priority, priority);
+  if ( priority > (curr->virtual_priority) ) {
     printf("LARGEEEEER\n");
     thread_yield();
   }
+  else {
+    printf("Didnt yield\n");
+  }
+
+  // sema_up(&thread_created);
 
   return tid;
+}
+
+void
+yield_if_prio(struct thread *t) {
+  struct thread *cur = running_thread ();
+
+  if (is_thread(cur)) {
+    printf("true\n");
+    // if (t->virtual_priority > (cur->virtual_priority))
+      // thread_yield();
+  }
 }
 
 /* Puts the current thread to sleep.  It will not be scheduled
@@ -250,13 +282,11 @@ thread_unblock (struct thread *t)
   enum intr_level old_level;
 
   ASSERT (is_thread (t));
-
-  old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
 
+  old_level = intr_disable ();
   list_insert_ordered(&ready_list, &t->elem, &thread_priority_cmp, NULL);
   t->status = THREAD_READY;
-  
   intr_set_level (old_level);
 }
 
@@ -360,6 +390,7 @@ thread_set_priority (int new_priority)
     thread_current ()->virtual_priority = new_priority;
 
   thread_current ()->priority = new_priority;
+  // yield_if_prio(t);
 
   thread_yield();
 }
@@ -444,11 +475,12 @@ idle (void *idle_started_ UNUSED)
 static void
 kernel_thread (thread_func *function, void *aux) 
 {
+  // sema_down(&thread_created);
   ASSERT (function != NULL);
-
   intr_enable ();       /* The scheduler runs with interrupts off. */
   function (aux);       /* Execute the thread function. */
   thread_exit ();       /* If function() returns, kill the thread. */
+  // sema_up(&thread_created);
 }
 
 /* Returns the running thread. */
@@ -482,8 +514,6 @@ init_thread (struct thread *t, const char *name, int priority)
   ASSERT (t != NULL);
   ASSERT (PRI_MIN <= priority && priority <= PRI_MAX);
   ASSERT (name != NULL);
-
-
 
   memset (t, 0, sizeof *t);
   t->status = THREAD_BLOCKED;
@@ -609,7 +639,7 @@ allocate_tid (void)
 
   return tid;
 }
-
+
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);

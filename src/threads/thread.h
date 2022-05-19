@@ -91,7 +91,6 @@ struct thread
    struct list_elem allelem;  /* List element for all threads list. */
 
    struct list_elem cond_elem;
-
    struct list_elem sema_elem;
 
    int virtual_priority;
@@ -151,4 +150,5 @@ void thread_set_nice(int);
 int thread_get_recent_cpu(void);
 int thread_get_load_avg(void);
 
+void yield_if_prio(struct thread *t);
 #endif /* threads/thread.h */

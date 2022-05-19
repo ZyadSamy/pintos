@@ -82,6 +82,7 @@ b_thread_func (void *lock_)
 
   struct lock *lock = lock_;
 
+  msg ("Thread b trying to acquire lock b.");
   lock_acquire (lock);
   msg ("Thread b acquired lock b.");
   lock_release (lock);

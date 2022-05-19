@@ -66,8 +66,8 @@ sema_init (struct semaphore *sema, unsigned value)
 
 bool
 sema_priority_cmp (const struct list_elem *a, const struct list_elem *b, void *aux) {
-  struct thread *thread1 = list_entry(a, struct thread, elem);
-  struct thread *thread2 = list_entry(b, struct thread, elem);
+  struct thread *thread1 = list_entry(a, struct thread, sema_elem);
+  struct thread *thread2 = list_entry(b, struct thread, sema_elem);
   return thread1->virtual_priority > thread2->virtual_priority;
 }
 
@@ -89,7 +89,7 @@ sema_down (struct semaphore *sema)
   old_level = intr_disable ();
   while (sema->value == 0)
     {
-      list_insert_ordered(&sema->waiters, &thread_current()->elem, &sema_priority_cmp, NULL);
+      list_insert_ordered(&sema->waiters, &thread_current()->sema_elem, &sema_priority_cmp, NULL);
       thread_block ();
     }
   sema->value--;
@@ -133,19 +133,24 @@ sema_up (struct semaphore *sema)
 
   ASSERT (sema != NULL);
 
+  struct thread* t = NULL;
+
   old_level = intr_disable ();
+
   if (!list_empty (&sema->waiters)) {
       list_sort(&sema->waiters, &sema_priority_cmp, NULL);
-      thread_unblock (list_entry (list_pop_front (&sema->waiters),
-      struct thread, elem));
+      t = list_entry (list_pop_front (&sema->waiters), struct thread, sema_elem);
+      thread_unblock (t);
   }
 
   sema->value++;
-  intr_set_level (old_level);
-  if (!intr_context()) {
+
+  if (t && t->priority > (thread_current()->virtual_priority)) {
     thread_yield();
   }
 
+
+  intr_set_level (old_level);
 
 }
 
@@ -283,7 +288,7 @@ get_locks_max_prio() {
        iter = list_next(iter))
   {
     struct lock* l = list_entry(iter, struct lock, elem);
-    int lock_max_prio = list_entry(list_begin(&l->semaphore.waiters), struct thread, elem)->priority;
+    int lock_max_prio = list_entry(list_begin(&l->semaphore.waiters), struct thread, sema_elem)->priority;
     if (lock_max_prio > max_prio)
       max_prio = lock_max_prio;
   }
