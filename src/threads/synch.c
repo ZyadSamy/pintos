@@ -211,7 +211,7 @@ void lock_acquire(struct lock *lock)
   if (cannot_acquire)
   {
     thread_current()->waiting_lock = lock;
-    donate_priority();
+    if (!thread_mlfqs) donate_priority();
   }
 
   sema_down(&lock->semaphore);
@@ -227,6 +227,8 @@ void lock_acquire(struct lock *lock)
    the lock blocking it. */
 void donate_priority(void)
 {
+  ASSERT(!thread_mlfqs);
+  
   struct thread *cur_holder = thread_current();
   while (cur_holder->waiting_lock != NULL)
   {
@@ -292,7 +294,8 @@ void lock_release(struct lock *lock)
   enum intr_level old_level = intr_disable();
 
   list_remove(&lock->elem);
-  lock->holder->priority = get_locks_priority();
+  if (!thread_mlfqs)
+    lock->holder->priority = get_locks_priority();
   lock->holder = NULL;
   sema_up(&lock->semaphore);
 
