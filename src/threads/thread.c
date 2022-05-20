@@ -407,7 +407,7 @@ void update_threads_priority_mlfqs(void) {
   if(list_empty(&ready_list)) return;
   list_sort(&ready_list, &thread_priority_cmp, NULL);
   struct thread *top_ready_thread = list_entry(list_front(&ready_list), struct thread, elem);
-  if (top_ready_thread->priority > thread_current()->priority) 
+  if (!intr_context() && top_ready_thread->priority > thread_current()->priority) 
     thread_yield();
 }
 
